@@ -103,15 +103,15 @@ OK,没什么好说的；通过mDragger.shouldInterceptTouchEvent(ev)来决定我
 
 * 3.ViewDragHelper.Callback中相关方法
 ```java
-    @Override
-    public boolean tryCaptureView(View child, int pointerId)
-    {
+@Override
+public boolean tryCaptureView(View child, int pointerId)
+{
 	return true;
-    }
+}
 
-    @Override
-    public int clampViewPositionHorizontal(View child, int left, int dx)
-    {
+@Override
+public int clampViewPositionHorizontal(View child, int left, int dx)
+{
 	//边界控制，横向移动控制在viewgroup内部
 	int paddingLeft = getPaddingLeft();
 	int rightBound = getWidth() - getPaddingRight() - child.getWidth();
@@ -122,13 +122,13 @@ OK,没什么好说的；通过mDragger.shouldInterceptTouchEvent(ev)来决定我
 		rightBound : left;
 
 	return left;
-    }
+}
 
-    @Override
-    public int clampViewPositionVertical(View child, int top, int dy)
-    {
+@Override
+public int clampViewPositionVertical(View child, int top, int dy)
+{
 	return top;
-    }
+}
 ```
 ViewDragHelper中拦截和处理事件时，会调用Callback中的很多方法决定一些事：比如哪些子view可以移动，移动的范围是什么，子view的边界控制等。
 
@@ -145,7 +145,7 @@ public int clampViewPositionVertical(View child, int top, int dy);
 ```
 这两个方法用来锁定子view移动后的位置。上面方法中对水平移动范围进行的控制，即只能在ViewGroup中移动。而垂直移动范围没有限制，直接return top;
 
-* OK,下面贴一下布局文件：
+OK,下面贴一下布局文件：
 ```java
 <?xml version="1.0" encoding="utf-8"?>
 <cn.hzh.vdh.view.VDHLayout
@@ -187,7 +187,7 @@ public int clampViewPositionVertical(View child, int top, int dy);
 
 </cn.hzh.vdh.view.VDHLayout>
 ```
-* Demo1效果图：
+Demo1效果图：
 <img src="xxx.gif" width="320px"/>
 
 # ViewDragHelper初探之Demo2
@@ -199,6 +199,7 @@ public int clampViewPositionVertical(View child, int top, int dy);
 我们在Demo1的基础上添加上面三个操作；
 
 首先看一下效果图：
+
 <img src="xxx.gif" width="320px"/>
 * 第一个子view和Demo1一样
 * 第二个子view，除了移动之外，松手就回到原本的位置
@@ -206,12 +207,12 @@ public int clampViewPositionVertical(View child, int top, int dy);
 
 由于代码比较长，下面分段贴上相应的代码：
 ```java
-    @Override
-    public boolean tryCaptureView(View child, int pointerId)
-    {
+@Override
+public boolean tryCaptureView(View child, int pointerId)
+{
 	//mEdgeTrackerView禁止直接移动
 	return child == mDragView || child == mAutoBackView;
-    }
+}
 ```
 这里我们对第三个子view禁止直接移动；即，当用户touch第三个子view上时，tryCaptureView()方法return false; 那么这个方法return false的直接后果就是不会执行dragTo()方法，该方法是ViewDragHelper内部的私有方法，实现对capturedView进行移动。
 
@@ -219,41 +220,41 @@ public int clampViewPositionVertical(View child, int top, int dy);
 /**
 * 手指释放时的回调以及相关方法
 */
-    @Override
-    public void onViewReleased(View releasedChild, float xvel, float yvel)
-    {
+@Override
+public void onViewReleased(View releasedChild, float xvel, float yvel)
+{
 	if(releasedChild == mAutoBackView)
 	{
 	    mDragger.settleCapturedViewAt(mAutoBackOriginPos.x, mAutoBackOriginPos.y);
 	    invalidate();
 	}
-    }
+}
 
-    @Override
-    public void computeScroll()
-    {
-        if(mDragger.continueSettling(true))
-        {
-            invalidate();
-        }
-    }
+@Override
+public void computeScroll()
+{
+	if(mDragger.continueSettling(true))
+	{
+	    invalidate();
+	}
+}
 ```
 这里调用了ViewDragHelper中的settleCapturedViewAt()方法，让CapturedView移动到指定位置。内部使用scroller对象实现移动的。所以需要调用invalidate(),并配合computeScroll()方法实现移动。
 
 ```java
-    //边界拖动时的回调
-    @Override
-    public void onEdgeDragStarted(int edgeFlags, int pointerId)
-    {
+//边界拖动时的回调
+@Override
+public void onEdgeDragStarted(int edgeFlags, int pointerId)
+{
 	mDragger.captureChildView(mEdgeTrackerView, pointerId);
-    }
+}
 
-    //enable EdgeTracking
-    mDragger.setEdgeTrackingEnabled(ViewDragHelper.EDGE_LEFT);
+//enable EdgeTracking
+mDragger.setEdgeTrackingEnabled(ViewDragHelper.EDGE_LEFT);
 ```
 Callback.onEdgeDragStarted()方法在用户touch屏幕edge的时候触发，在里面我们调用ViewDragHelper的captureChildView()方法设置第三个子view为capturedView；当然还需要手动enable EdgeTracking。
 
-* 下面贴一下其他方法
+下面贴一下其他方法
 ```java
 @Override
 protected void onFinishInflate()
