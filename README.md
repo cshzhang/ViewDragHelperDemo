@@ -188,7 +188,8 @@ OK,下面贴一下布局文件：
 </cn.hzh.vdh.view.VDHLayout>
 ```
 Demo1效果图：
-<img src="xxx.gif" width="320px"/>
+
+<img src="demo1.gif" width="320px"/>
 
 # ViewDragHelper初探之Demo2
 对ViewDragHelper有了直观认识之后，我们继续学习ViewDragHelper其他功能。
@@ -200,7 +201,8 @@ Demo1效果图：
 
 首先看一下效果图：
 
-<img src="xxx.gif" width="320px"/>
+<img src="demo2.gif" width="320px"/>
+
 * 第一个子view和Demo1一样
 * 第二个子view，除了移动之外，松手就回到原本的位置
 * 第三个子view，在边界移动时才操作该子view
@@ -295,6 +297,6 @@ public int getViewVerticalDragRange(View child)
 	return getMeasuredHeight() - child.getMeasuredHeight();
 }
 ```
-上面方法默认返回0,如果返回0，mDragger.shouldInterceptTouchEvent()就返回false。只有getViewHorizontalDragRange和getViewVerticalDragRange返回大于0，能可以对事件进行捕获。
+上面方法默认返回0。如果返回0，mDragger.shouldInterceptTouchEvent()就返回false。只有getViewHorizontalDragRange和getViewVerticalDragRange返回大于0，才可以对事件进行捕获。
 
 OK,至此Demo2分析完毕。
