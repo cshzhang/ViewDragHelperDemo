@@ -593,6 +593,7 @@ public void toggle()
 那么，MyDrawerLayout类就分析结束了
 
 * 3.编写Activity和Fragment进行测试
+
 Activity代码：
 ```java
 public class MainActivity extends AppCompatActivity
