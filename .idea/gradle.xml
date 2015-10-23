@@ -12,6 +12,7 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/demo01" />
             <option value="$PROJECT_DIR$/demo02" />
+            <option value="$PROJECT_DIR$/mydrawerlayout" />
           </set>
         </option>
       </GradleProjectSettings>

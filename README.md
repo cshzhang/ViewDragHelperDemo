@@ -300,3 +300,488 @@ public int getViewVerticalDragRange(View child)
 上面方法默认返回0。如果返回0，mDragger.shouldInterceptTouchEvent()就返回false。只有getViewHorizontalDragRange和getViewVerticalDragRange返回大于0，才可以对事件进行捕获。
 
 OK,至此Demo2分析完毕。
+
+# ViewDragHelper实战之实现DrawerLayout
+打算按如下步骤实现MyDrawerLayout类的编写
+* 通过自定义ViewGroup实现，重写onMeasure,onLayout实现对自身以及子view测量和布局
+* 引入ViewDragHelper实现对LeftMenu的拖拽
+* 编写activity和fragment对MyDrawerLayout类进行测试
+
+先贴一下布局文件
+```java
+<cn.hzh.mydrawerlayout.MyDrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/id_drawer_layout"
+    tools:showIn="@layout/activity_main"
+    tools:context=".MainActivity">
+
+    <RelativeLayout
+        android:clickable="true"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#44ff0000">
+        <TextView
+            android:id="@+id/id_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_centerInParent="true"
+            android:text="hello world"
+            android:textSize="22sp"/>
+    </RelativeLayout>
+
+    <FrameLayout
+        android:id="@+id/id_container_menu"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#4400ff00">
+    </FrameLayout>
+    
+</cn.hzh.mydrawerlayout.MyDrawerLayout>
+```
+第一个子view显示内容；第二个子view显示左侧菜单；
+
+OK，下面分析代码
+
+* 1.首先对子view测量和布局
+```java
+public class MyDrawerLayout extends ViewGroup
+{
+
+    private static final int MIN_Drawer_MARGIN_RIGHT = 64;      //dp
+    //MenuView完全展开时，离容器的右边距：64dp
+    private int mMinDrawerRightMargin;
+    //控制LeftMenu显示宽度的比例值: 0.0f ~ 1.0f
+    private float mMenuWidthRatio = 0.0f;
+
+    private View mContentView;
+    private View mMenuView;
+
+    public MyDrawerLayout(Context context, AttributeSet attrs)
+    {
+        super(context, attrs);
+
+        //在160dpi的屏幕上，density=1
+        float density = getResources().getDisplayMetrics().density;
+        //64dp对应的像素值
+        mMinDrawerRightMargin = (int) (MIN_Drawer_MARGIN_RIGHT*density + 0.5f);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)
+    {
+        int width = MeasureSpec.getSize(widthMeasureSpec);
+        int height = MeasureSpec.getSize(heightMeasureSpec);
+        setMeasuredDimension(width, height);
+
+        //measure child
+        View leftMenuView = getChildAt(1);
+        MarginLayoutParams lp = (MarginLayoutParams) leftMenuView.getLayoutParams();
+        int drawerWidthSpec = getChildMeasureSpec(widthMeasureSpec,
+                mMinDrawerRightMargin + lp.leftMargin+lp.rightMargin, lp.width);
+        int drawerHeightSpec = getChildMeasureSpec(heightMeasureSpec,
+                lp.topMargin + lp.bottomMargin, lp.height);
+        leftMenuView.measure(drawerWidthSpec, drawerHeightSpec);
+
+        //measure child
+        View contentView = getChildAt(0);
+        lp = (MarginLayoutParams) contentView.getLayoutParams();
+        int contentWidthSpec = MeasureSpec.makeMeasureSpec(width - lp.leftMargin - lp.rightMargin,
+                MeasureSpec.EXACTLY);
+        int contentHeightSpec = MeasureSpec.makeMeasureSpec(height - lp.topMargin - lp.bottomMargin,
+                MeasureSpec.EXACTLY);
+        contentView.measure(contentWidthSpec, contentHeightSpec);
+
+        mMenuView = leftMenuView;
+        mContentView = contentView;
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int l, int t, int r, int b)
+    {
+        View menuView = mMenuView;
+        View contentView = mContentView;
+
+        //摆放contentView
+        MarginLayoutParams lp = (MarginLayoutParams) contentView.getLayoutParams();
+        contentView.layout(lp.leftMargin, lp.topMargin,
+                lp.leftMargin+contentView.getMeasuredWidth(), lp.topMargin+contentView.getMeasuredHeight());
+
+        //摆放menuView
+        lp = (MarginLayoutParams) menuView.getLayoutParams();
+        int menuWidth = menuView.getMeasuredWidth();
+        //mMenuWidthRatio: 0~1; left: -menuWidth~0
+        int left = -menuWidth + (int)(menuWidth * mMenuWidthRatio);
+        menuView.layout(left, lp.topMargin,
+                left+menuWidth, lp.topMargin + menuView.getMeasuredHeight());
+    }
+
+    @Override
+    protected LayoutParams generateDefaultLayoutParams()
+    {
+        return new MarginLayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+    }
+
+    @Override
+    protected LayoutParams generateLayoutParams(LayoutParams p)
+    {
+        return new MarginLayoutParams(p);
+    }
+
+    @Override
+    public LayoutParams generateLayoutParams(AttributeSet attrs)
+    {
+        return new MarginLayoutParams(getContext(), attrs);
+    }
+}
+```
+常量MIN_Drawer_MARGIN_RIGHT用于定义当menu展开的时候，距离ViewGroup右侧的margin，这里写死为64dp。
+在构造函数中通过
+```java
+float density = getResources().getDisplayMetrics().density;
+mMinDrawerRightMargin = (int) (MIN_Drawer_MARGIN_RIGHT*density + 0.5f);
+```
+这两行代码，把64dp转换成设备对应的像素值大小。用变量mMinDrawerRightMargin记录。
+
+在onMeasure方法中确定了mMenuView和mContentView的宽度高度，mMenuView通过ViewGroup的getChildMeasureSpec (int spec, int padding, int childDimension)
+方法确定自己的MeasureSpec;mContentView通过MeasureSpec.makeMeasureSpec确定自己的MeasureSpec；
+最后调用measure方法进行测量；注意，这里使用MarginLayoutParams，所以要复写相关方法。
+
+接下来在在onLayout方法中进行布局子view。摆放contentView很简单，就不多说了。在摆放menuView使用了比例mMenuWidthRatio
+变量来确定menuView的left值。这里使用这种方法确定left值得原因是：下面需要根据用户的touch动态改变mMenuWidthRatio比例值。
+
+下面看效果图：
+
+mMenuWidthRatio = 0.0f
+
+<img src="0.png" width="320px"/>
+
+mMenuWidthRatio = 1.0f
+
+<img src="1.png" width="320px"/>
+
+* 2.引入ViewDragHelper实现对LeftMenu的拖拽
+初始化ViewDragHelper
+```java
+mDrag = ViewDragHelper.create(this, 1.0f, new ViewDragHelper.Callback()
+        {
+            @Override
+            public boolean tryCaptureView(View child, int pointerId)
+            {
+                return child == mMenuView;
+            }
+
+            //将left锁定在-menuWidth ~ 0
+            @Override
+            public int clampViewPositionHorizontal(View child, int left, int dx)
+            {
+                int width = child.getWidth();
+                left = left < -width ? -width : left;
+                left = left > 0 ? 0 : left;
+                return left;
+            }
+
+            @Override
+            public void onViewReleased(View releasedChild, float xvel, float yvel)
+            {
+                int width = releasedChild.getWidth();
+                //offset : 0 ~ 1 展开时为1，隐藏时为0
+                float offset = (width + releasedChild.getLeft()) * 1.0f / width;
+                int finalLeft = xvel > 0 || xvel == 0 && offset > 0.5f ? 0 : -width;
+                int finalTop = releasedChild.getTop();
+
+                mDrag.settleCapturedViewAt(finalLeft, finalTop);
+                invalidate();
+            }
+
+            @Override
+            public void onViewPositionChanged(View changedView, int left, int top, int dx, int dy)
+            {
+                int width = changedView.getWidth();
+                //offset : 0 ~ 1 展开时为1，隐藏时为0
+                float offset = (width + changedView.getLeft()) * 1.0f / width;
+                mMenuWidthRatio = offset;
+
+                changedView.setVisibility(offset == 0 ? INVISIBLE : VISIBLE);
+                invalidate();
+            }
+
+            @Override
+            public void onEdgeDragStarted(int edgeFlags, int pointerId)
+            {
+                mDrag.captureChildView(mMenuView, pointerId);
+            }
+
+            @Override
+            public int getViewHorizontalDragRange(View child)
+            {
+                return child == mMenuView ? child.getWidth() : 0;
+            }
+        });
+ mDrag.setEdgeTrackingEnabled(ViewDragHelper.EDGE_LEFT);
+ mDrag.setMinVelocity(minVel);
+```
+下面把重写的方法解释一下
+* tryCaptureView: 我们是edge触发拖动，为什么还要复写这个方法？因为当leftMenu展开的时候，我们仍需要直接拖动mMenuView
+* clampViewPositionHorizontal: 锁定leftMenu的水平移动位置；从代码中可见left范围：-menuWidth ~ 0
+* onViewReleased: 释放子view的时候触发；通过计算当前子view显示的百分比以及加速度来决定是否显示mMenuView，
+这里注意一点，xvel的值只有大于我们设置的minvel才会大于0，如果小于我们设置的minVel则一直是0
+* onViewPositionChanged: 这个回调主要功能就是更新mMenuWidthRatio，以及强制view重绘(invalidate)
+* onEdgeDragStarted: 当用户touch屏幕的edge的时候触发，这里手动把mMenuView设置为capturedView
+* getViewHorizontalDragRange: 这里上面解释过了，主要第一、设置子view的移动范围；第二、防止子view消耗事件
+
+别忘了把MotionEvent交给ViewDragHelper
+```java
+@Override
+public boolean onInterceptTouchEvent(MotionEvent ev)
+{
+	return mDrag.shouldInterceptTouchEvent(ev);
+}
+
+@Override
+public boolean onTouchEvent(MotionEvent event)
+{	
+	mDrag.processTouchEvent(event);
+	return true;
+}
+```
+
+由于在onViewReleased里面使用了mDrag.settleCapturedViewAt(finalLeft, finalTop);所以别忘了复写computeScroll方法
+```java
+@Override
+public void computeScroll()
+{
+	if(mDrag.continueSettling(true))
+	{
+	    invalidate();
+	}
+}
+```
+
+OK，最后对外公布几个API
+```java
+public void openDrawer()
+{
+	View menuView = mMenuView;
+	mMenuWidthRatio = 1.0f;
+	mDrag.smoothSlideViewTo(menuView, 0, menuView.getTop());
+	invalidate();
+}
+
+public void closeDrawer()
+{
+	View menuView = mMenuView;
+	mMenuWidthRatio = 0.0f;
+	mDrag.smoothSlideViewTo(menuView, -menuView.getWidth(), menuView.getTop());
+	invalidate();
+}
+
+public void toggle()
+{
+	if(mMenuWidthRatio == 0.0f)
+	{
+	    openDrawer();
+	}else if(mMenuWidthRatio == 1.0f)
+	{
+	    closeDrawer();
+	}
+}
+```
+那么，MyDrawerLayout类就分析结束了
+
+# 编写Activity和Fragment进行测试
+Activity代码：
+```java
+public class MainActivity extends AppCompatActivity
+{
+
+    private MyDrawerLayout mDrawerLayout;
+    private TextView mContent;
+    private LeftMenuFragment mLeftMenuFragment;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        mDrawerLayout = (MyDrawerLayout) findViewById(R.id.id_drawer_layout);
+        mContent = (TextView) findViewById(R.id.id_content);
+
+        FragmentManager fm = getSupportFragmentManager();
+        mLeftMenuFragment = (LeftMenuFragment) fm.findFragmentById(R.id.id_container_menu);
+        if(mLeftMenuFragment == null)
+        {
+            mLeftMenuFragment = new LeftMenuFragment();
+            fm.beginTransaction().add(R.id.id_container_menu, mLeftMenuFragment).commit();
+        }
+
+        mLeftMenuFragment.setOnMenuItemSelectedListener(new LeftMenuFragment.OnMenuItemSelectedListener()
+        {
+            @Override
+            public void onItemSelected(String text)
+            {
+                mDrawerLayout.closeDrawer();
+                mContent.setText(text);
+            }
+        });
+
+    }
+}
+```
+很简单，就new了一个LeftMenuFragment，然后通过fm添加到activity中去；
+
+LeftMenuFragment代码
+```java
+public class LeftMenuFragment extends ListFragment
+{
+
+    private MenuAdapter mAdatper;
+    String[] strs = new String[]
+            {"播放列表", "我的乐库", "立即播放"};
+    MenuItem mDatas[] = new MenuItem[strs.length];
+
+    public interface OnMenuItemSelectedListener
+    {
+        void onItemSelected(String text);
+    }
+    private OnMenuItemSelectedListener mListener;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+
+        MenuItem item = null;
+        for(int i = 0; i < mDatas.length; i++)
+        {
+            item = new MenuItem(strs[i],
+                    R.mipmap.music_36px, R.mipmap.music_36px_light);
+            mDatas[i] = item;
+        }
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState)
+    {
+        super.onViewCreated(view, savedInstanceState);
+        view.setBackgroundColor(0xffffffff);
+        mAdatper = new MenuAdapter(getActivity(), mDatas);
+        setListAdapter(mAdatper);
+    }
+
+    @Override
+    public void onListItemClick(ListView l, View v, int position, long id)
+    {
+        super.onListItemClick(l, v, position, id);
+
+        if(mListener != null)
+        {
+            MenuAdapter adapter = (MenuAdapter) getListAdapter();
+            mListener.onItemSelected(adapter.getItem(position).text);
+        }
+
+        mAdatper.setSelected(position);
+    }
+
+    public void setOnMenuItemSelectedListener(OnMenuItemSelectedListener listener)
+    {
+        this.mListener = listener;
+    }
+
+    public class MenuAdapter extends ArrayAdapter<MenuItem>
+    {
+        private LayoutInflater mInflater;
+        //这个变量实现 选中后状态改变
+        private int mSelected;
+
+        private Context mContext;
+        private int mIconSize;
+
+        public MenuAdapter(Context context, MenuItem[] mDatas)
+        {
+            super(context, -1, mDatas);
+
+            mContext = context;
+            mInflater = LayoutInflater.from(context);
+
+            //24dp
+            mIconSize = mContext.getResources().getDimensionPixelSize(R.dimen.drawer_icon_size);
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent)
+        {
+            if(convertView == null)
+            {
+                convertView = mInflater.inflate(R.layout.drawer_menu_item, parent, false);
+            }
+            TextView tv = (TextView) convertView;
+            tv.setBackgroundColor(Color.TRANSPARENT);
+            tv.setText(getItem(position).text);
+            Drawable icon = mContext.getResources().getDrawable(getItem(position).icon);
+            icon.setBounds(0,0,mIconSize, mIconSize);
+            TextViewCompat.setCompoundDrawablesRelative(tv, icon, null, null, null);
+
+            if(position == mSelected)
+            {
+                tv.setBackgroundColor(0x4400ff00);
+                icon = mContext.getResources().getDrawable(getItem(position).iconSelected);
+                icon.setBounds(0,0,mIconSize, mIconSize);
+                TextViewCompat.setCompoundDrawablesRelative(tv, icon, null, null, null);
+            }
+
+            return convertView;
+        }
+
+        public void setSelected(int position)
+        {
+            this.mSelected = position;
+            notifyDataSetChanged();
+        }
+    }
+
+    public class MenuItem
+    {
+        String text;
+        int icon;
+        int iconSelected;
+
+        public MenuItem(String text, int icon, int iconSelected)
+        {
+            this.text = text;
+            this.icon = icon;
+            this.iconSelected = iconSelected;
+        }
+    }
+}
+```
+这里继承ListFragment实现的，具体实现没什么难的；模板式的编写fragment。
+因为代码比较简单，我把item的bean以及adapter都已内部类的形式写里面了。
+
+另外在MenuAdapter中对外公布了setSelected方法，这个方法的作用就是外面选中某一个Item的时候设置选中后的Item的状态。
+
+下面贴上drawer_menu_item.xml布局文件
+```java
+<?xml version="1.0" encoding="utf-8"?>
+<TextView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="?attr/listPreferredItemHeightSmall"
+    android:drawablePadding="32dp"
+    android:gravity="center_vertical|start"
+    android:maxLines="1"
+    android:paddingLeft="?attr/listPreferredItemPaddingLeft"
+    android:paddingRight="?attr/listPreferredItemPaddingRight"
+    android:textAppearance="?attr/textAppearanceListItem"
+    android:textColor="?android:attr/textColorPrimary"/>
+```
+
+OK,最后看一下效果：
+
+<img src="final.gif", width="320px"/>
