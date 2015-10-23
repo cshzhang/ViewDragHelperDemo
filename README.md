@@ -592,7 +592,7 @@ public void toggle()
 ```
 那么，MyDrawerLayout类就分析结束了
 
-# 编写Activity和Fragment进行测试
+* 3.编写Activity和Fragment进行测试
 Activity代码：
 ```java
 public class MainActivity extends AppCompatActivity
@@ -761,10 +761,8 @@ public class LeftMenuFragment extends ListFragment
     }
 }
 ```
-这里继承ListFragment实现的，具体实现没什么难的；模板式的编写fragment。
-因为代码比较简单，我把item的bean以及adapter都已内部类的形式写里面了。
-
-另外在MenuAdapter中对外公布了setSelected方法，这个方法的作用就是外面选中某一个Item的时候设置选中后的Item的状态。
+* MenuItem以及adapter都已内部类的形式写里面了。
+* 在MenuAdapter中对外公布了setSelected方法，这个方法的作用就是: 外面选中某一个Item的时候设置选中后的Item的状态。
 
 下面贴上drawer_menu_item.xml布局文件
 ```java
